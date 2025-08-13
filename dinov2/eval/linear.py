@@ -29,9 +29,9 @@ from dinov2.eval.setup import get_args_parser as get_setup_args_parser
 from dinov2.eval.setup import setup_and_build_model
 from dinov2.eval.utils import ModelWithIntermediateLayers, evaluate
 from dinov2.logging import MetricLogger
-
+import torch.distributed as dist
 logger = logging.getLogger("dinov2")
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 def get_args_parser(
     description: Optional[str] = None,
@@ -51,22 +51,20 @@ def get_args_parser(
         dest="train_dataset_str",
         type=str,
         help="Training dataset",
-        default = "ImageNet:split=TRAIN"
+        default = "MyDataset:split=TRAIN:root=/root/vlm_classification/out_classifier/jpg_data_/train:extra=/root/vlm_classification/out_classifier/jpg_data_/train_extra"
     )
     parser.add_argument(
         "--val-dataset",
         dest="val_dataset_str",
         type=str,
-        help="Validation dataset",
-        default = "ImageNet:split=VAL"
+        help="Validation dataset"
     )
     parser.add_argument(
         "--test-datasets",
         dest="test_dataset_strs",
         type=str,
         nargs="+",
-        help="Test datasets, none to reuse the validation dataset",
-        default = None
+        help="Test datasets, none to reuse the validation dataset"
     )
     parser.add_argument(
         "--epochs",
@@ -139,16 +137,17 @@ def get_args_parser(
         type=str,
         help="Path to a file containing a mapping to adjust classifier outputs",
     )
+    
     parser.set_defaults(
-        train_dataset_str="ImageNet:split=TRAIN",
-        val_dataset_str="ImageNet:split=VAL",
-        test_dataset_strs=None,
+        train_dataset_str="MyDataset:split=TRAIN:root=/root/vlm_classification/out_classifier/jpg_data_2:extra=/root/vlm_classification/out_classifier/jpg_data_2_extra",
+        val_dataset_str="MyDataset:split=VAL:root=/root/vlm_classification/out_classifier/jpg_data_2:extra=/root/vlm_classification/out_classifier/jpg_data_2_extra",
+        test_dataset_strs=["MyDataset:split=TEST:root=/root/vlm_classification/out_classifier/jpg_data_2:extra=/root/vlm_classification/out_classifier/jpg_data_2_extra"],
         epochs=10,
         batch_size=128,
         num_workers=8,
-        epoch_length=1250,
+        epoch_length=64,
         save_checkpoint_frequency=20,
-        eval_period_iterations=1250,
+        eval_period_iterations=64,
         learning_rates=[1e-5, 2e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3, 2e-3, 5e-3, 1e-2, 2e-2, 5e-2, 0.1],
         val_metric_type=MetricType.MEAN_ACCURACY,
         test_metric_types=None,
@@ -601,30 +600,41 @@ def run_eval_linear(
 
 
 def main(args):
-    model, autocast_dtype = setup_and_build_model(args)
-    run_eval_linear(
-        model=model,
-        output_dir=args.output_dir,
-        train_dataset_str=args.train_dataset_str,
-        val_dataset_str=args.val_dataset_str,
-        test_dataset_strs=args.test_dataset_strs,
-        batch_size=args.batch_size,
-        epochs=args.epochs,
-        epoch_length=args.epoch_length,
-        num_workers=args.num_workers,
-        save_checkpoint_frequency=args.save_checkpoint_frequency,
-        eval_period_iterations=args.eval_period_iterations,
-        learning_rates=args.learning_rates,
-        autocast_dtype=autocast_dtype,
-        resume=not args.no_resume,
-        classifier_fpath=args.classifier_fpath,
-        val_metric_type=args.val_metric_type,
-        test_metric_types=args.test_metric_types,
-        val_class_mapping_fpath=args.val_class_mapping_fpath,
-        test_class_mapping_fpaths=args.test_class_mapping_fpaths,
-    )
-    return 0
-
+    try:
+        model, autocast_dtype = setup_and_build_model(args)
+        run_eval_linear(
+            model=model,
+            output_dir=args.output_dir,
+            train_dataset_str=args.train_dataset_str,
+            val_dataset_str=args.val_dataset_str,
+            test_dataset_strs=args.test_dataset_strs,
+            batch_size=args.batch_size,
+            epochs=args.epochs,
+            epoch_length=args.epoch_length,
+            num_workers=args.num_workers,
+            save_checkpoint_frequency=args.save_checkpoint_frequency,
+            eval_period_iterations=args.eval_period_iterations,
+            learning_rates=args.learning_rates,
+            autocast_dtype=autocast_dtype,
+            resume=not args.no_resume,
+            classifier_fpath=args.classifier_fpath,
+            val_metric_type=args.val_metric_type,
+            test_metric_types=args.test_metric_types,
+            val_class_mapping_fpath=args.val_class_mapping_fpath,
+            test_class_mapping_fpaths=args.test_class_mapping_fpaths,
+        )
+        return 0
+    finally:
+        # DDP/NCCL 정리
+        if distributed.is_enabled():
+            try:
+                dist.barrier()
+            except Exception:
+                pass
+            try:
+                dist.destroy_process_group()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     description = "DINOv2 linear evaluation"

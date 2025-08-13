@@ -57,6 +57,10 @@ def build_metric(metric_type: MetricType, *, num_classes: int, ks: Optional[tupl
 
 
 def build_topk_accuracy_metric(average_type: AccuracyAveraging, num_classes: int, ks: tuple = (1, 5)):
+    # num_classes보다 큰 top_k는 제거
+    ks = tuple(k for k in ks if k <= int(num_classes))
+    if not ks:
+        ks = (1,)  # 안전장치: 최소 top-1
     metrics: Dict[str, Metric] = {
         f"top-{k}": MulticlassAccuracy(top_k=k, num_classes=int(num_classes), average=average_type.value) for k in ks
     }

@@ -28,17 +28,19 @@ def get_args_parser(
         "--config-file",
         type=str,
         help="Model configuration file",
-        default = "/root/vlm_classification/dinov2/configs/eval/vitg14_pretrain.yaml"
+        # default = "/root/vlm_classification/dinov2/configs/eval/vitg14_pretrain.yaml"
+        default = "/root/vlm_classification/dinov2/configs/eval/vitg14_reg4_pretrain.yaml"
     )
     parser.add_argument(
         "--pretrained-weights",
         type=str,
         help="Pretrained model weights",
-        default = "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth"
+        # default = "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_pretrain.pth"
+        default = "https://dl.fbaipublicfiles.com/dinov2/dinov2_vitg14/dinov2_vitg14_reg4_pretrain.pth"
     )
     parser.add_argument(
         "--output-dir",
-        default="",
+        default="/root/vlm_classification/out_classifier/dinov2_vitg14_pretrain",
         type=str,
         help="Output directory to write results and logs",
     )

@@ -1,2 +1,3 @@
-/root/vlm_classification/data/
-/root/vlm_classification/.gitignore
+data/
+.gitignore
+out_classifier/
